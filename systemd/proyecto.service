@@ -1,0 +1,12 @@
+[Unit]
+Description=Servidor Remote Shell y Monitoreo de Recursos
+After=network.target
+
+[Service]
+User=proyectoso
+ExecStart=/usr/local/bin/servidorOper
+LogsDirectory=proyecto
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
