@@ -1,4 +1,0 @@
-# Generar cada linea con: go run crearUsuario/crearUsuario.go usuario password
-# Formato: usuario:salt:hash   (hash = sha512(salt+password))
-luna:ecb1397e02bbf230:9a3071e74459f5ad98597819425d1edba0118104b0c78b63296f39397a017904593d70f66e1a83c2485721d7c24bb42cad7780cd471bd372a31ddeb1b0a32580
-leidy:8b40f7934fda8ca4:6c19017e50b2bca5d0337dae4f24659a0dbef11a35485992e9d725f06acf33554b0463a70c5f8505ddc97121b93b0319842a825282b1ccde1c9934a521d22bdb
