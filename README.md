@@ -61,10 +61,10 @@ Cada comando corre independiente con `sh -c` (un `cd` no se conserva; use `cd /e
 | Sin privilegios (más) | `rm /etc/hostname`, `touch /etc/prueba` (deben fallar por permisos) |
 | Lista negra | `kill`, `pkill`, `killall`, `reboot`, `shutdown`, `halt`, `poweroff`, `systemctl`, `sudo`, `su` (responden "comando no permitido"; también si van tras `;`, `\|` o `&&`) |
 | Comportamiento | `comandoinexistente`, `true` (sin salida), `sleep 3 && echo listo`, `sleep 40` (se cancela a los 30 s) |
-| Autenticación | contraseña mala 3 veces: bloqueo; usuario fuera de `usuarios_permitidos`: rechazado; dos clientes a la vez; periodos 1, 5 y 10 |
+| Autenticación | contraseña mala 3 veces: bloqueo; usuario fuera de `usuarios_permitidos`: rechazado; periodos 1, 5 y 10 |
 | En la VM | `systemctl status proyecto --no-pager`, `sudo tail -f /var/log/proyecto/proyecto.log`, `ps -o user,pid,cmd -C servidorOper`, `ss -tlnp \| grep 2810` |
 
-Guion de defensa: estado del servicio, login fallido y bloqueo, login correcto con reporte, `hostname`/`free -h`/`df -h`, `cat /etc/shadow` y `rm /etc/hostname` (permiso denegado), `sleep 40`, dos clientes, `bye` y revisión del log.
+Guion de defensa: estado del servicio, login fallido y bloqueo, login correcto con reporte, `hostname`/`free -h`/`df -h`, `cat /etc/shadow` y `rm /etc/hostname` (permiso denegado), `sleep 40`, `bye` y revisión del log.
 
 ## Git
 ```
