@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -73,7 +74,6 @@ func enviarComando(socketC net.Conn, comando string) {
 	bufsc.Flush()
 }
 
-// Recibe del servidor reportes (REPORTE|...) y salidas de comandos (SALIDA|...)
 func recibirMensajes(bufsc *bufio.Reader) {
 	for {
 		linea, err := bufsc.ReadString('\n')
@@ -145,6 +145,7 @@ func mostrarPrincipal(socketC net.Conn, bufsc *bufio.Reader, miApp fyne.App) {
 			return
 		}
 		salidaTexto.SetText(salidaTexto.Text + "$ " + comando + "\n")
+		bajarAlFinal()
 		enviarComando(socketC, comando)
 		comandoEntry.SetText("")
 
@@ -164,13 +165,12 @@ func mostrarPrincipal(socketC net.Conn, bufsc *bufio.Reader, miApp fyne.App) {
 		),
 		comandoEntry,
 		nil, nil,
-		container.NewScroll(salidaTexto),
+		salidaTexto,
 	))
 
 	go recibirMensajes(bufsc)
 }
 
-// El reporte llega asi: Reporte (3): [CPU=12% - RAM=40% - DD=76% - PROC=80]
 func mostrarReporte(texto string) {
 	var cpu, ram, disco, procesos int
 	inicio := strings.Index(texto, "[")
@@ -188,5 +188,18 @@ func mostrarReporte(texto string) {
 func mostrarSalida(texto string) {
 	fyne.Do(func() {
 		salidaTexto.SetText(salidaTexto.Text + texto + "\n")
+		bajarAlFinal()
 	})
+}
+
+func irAlFinal() {
+	salidaTexto.TypedKey(&fyne.KeyEvent{Name: fyne.KeyPageDown})
+}
+
+func bajarAlFinal() {
+	irAlFinal()
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		fyne.Do(irAlFinal)
+	}()
 }

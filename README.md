@@ -58,7 +58,8 @@ Cada comando corre independiente con `sh -c` (un `cd` no se conserva; use `cd /e
 | Red | `ip a`, `ss -tlnp` (debe verse el 2810), `ss -tn` |
 | Archivos | `ls -l /etc \| head -n 15`, `cat /etc/configProyecto.conf`, `echo prueba > /tmp/prueba.txt && cat /tmp/prueba.txt` |
 | Sin privilegios (deben fallar) | `cat /etc/shadow`, `touch /etc/prueba`, `ls /root` |
-| Sin privilegios (más) | `rm /etc/hostname`, `reboot`, `systemctl stop proyecto` (deben fallar por permisos) |
+| Sin privilegios (más) | `rm /etc/hostname`, `touch /etc/prueba` (deben fallar por permisos) |
+| Lista negra | `kill`, `pkill`, `killall`, `reboot`, `shutdown`, `halt`, `poweroff`, `systemctl`, `sudo`, `su` (responden "comando no permitido"; también si van tras `;`, `\|` o `&&`) |
 | Comportamiento | `comandoinexistente`, `true` (sin salida), `sleep 3 && echo listo`, `sleep 40` (se cancela a los 30 s) |
 | Autenticación | contraseña mala 3 veces: bloqueo; usuario fuera de `usuarios_permitidos`: rechazado; dos clientes a la vez; periodos 1, 5 y 10 |
 | En la VM | `systemctl status proyecto --no-pager`, `sudo tail -f /var/log/proyecto/proyecto.log`, `ps -o user,pid,cmd -C servidorOper`, `ss -tlnp \| grep 2810` |

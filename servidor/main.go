@@ -19,7 +19,6 @@ import (
 
 const archivoConf = "/etc/configProyecto.conf"
 
-// Datos que se leen de /etc/configProyecto.conf (con valores por defecto)
 var ipPermitida string
 var puerto = "2810"
 var intentos = 3
@@ -42,7 +41,6 @@ func main() {
 	iniciar()
 }
 
-// Imprime la linea usuario:sal:hash para agregarla al archivo de usuarios
 func crearUsuario(usuario string, password string) {
 	saltBytes := make([]byte, 8)
 	rand.Read(saltBytes)
@@ -125,6 +123,7 @@ func atenderCliente(socketS net.Conn) {
 
 	ipCliente := socketS.RemoteAddr().(*net.TCPAddr).IP.String()
 	if ipCliente != ipPermitida {
+		fmt.Println("IP NO permitida:", ipCliente)
 		log.Println("IP NO permitida:", ipCliente)
 		return
 	}
@@ -135,6 +134,7 @@ func atenderCliente(socketS net.Conn) {
 	if usuario == "" {
 		return
 	}
+	fmt.Println("Usuario autenticado:", usuario)
 	log.Println("Usuario autenticado:", usuario)
 
 	periodoStr, _ := bufsr.ReadString('\n')
@@ -143,13 +143,12 @@ func atenderCliente(socketS net.Conn) {
 		periodo = 5
 	}
 
-	// En paralelo: un hilo manda el reporte y otro recibe comandos.
-	// El canal fin avisa cuando el cliente se va (bye o desconexion).
 	fin := make(chan bool)
-	go envMensajeS(socketS, periodo)
+	go envMensajeS(socketS, periodo, usuario)
 	go recMensajeS(socketS, bufsr, usuario, fin)
 
 	<-fin
+	fmt.Println("Cliente desconectado:", usuario)
 	log.Println("Cliente desconectado:", usuario)
 }
 
@@ -164,12 +163,14 @@ func autenticarCliente(socketS net.Conn, bufsr *bufio.Reader) string {
 			socketS.Write([]byte("OK\n"))
 			return usuario
 		}
+		fmt.Println("Autenticacion fallida (intento", intento, ") usuario:", usuario)
 		log.Println("Autenticacion fallida (intento", intento, ") usuario:", usuario)
 		if intento < intentos {
 			socketS.Write([]byte("FAIL\n"))
 		}
 	}
 	socketS.Write([]byte("BLOQUEADO\n"))
+	fmt.Println("Cliente bloqueado por exceso de intentos fallidos")
 	log.Println("Cliente bloqueado por exceso de intentos fallidos")
 	return ""
 }
@@ -183,7 +184,6 @@ func usuarioPermitido(usuario string) bool {
 	return false
 }
 
-// Busca usuario:sal:hash en el archivo y compara sha256(sal + password)
 func validarPassword(usuario string, password string) bool {
 	archivo, err := os.Open(archivoUsuarios)
 	if err != nil {
@@ -204,22 +204,20 @@ func validarPassword(usuario string, password string) bool {
 	return false
 }
 
-// Manda el reporte cada n segundos. Termina cuando ya no puede escribir
-// en el socket (el cliente se fue y el socket se cerro).
-func envMensajeS(socketS net.Conn, periodo int) {
+func envMensajeS(socketS net.Conn, periodo int, usuario string) {
 	num := 0
 	for {
 		num++
-		reporte := "REPORTE|Reporte (" + strconv.Itoa(num) + "): " + generarReporte() + "\n"
-		_, err := socketS.Write([]byte(reporte))
+		texto := "Reporte (" + strconv.Itoa(num) + "): " + generarReporte()
+		_, err := socketS.Write([]byte("REPORTE|" + texto + "\n"))
 		if err != nil {
 			return
 		}
+		fmt.Println("Reporte enviado a", usuario, "->", texto)
 		time.Sleep(time.Second * time.Duration(periodo))
 	}
 }
 
-// Recibe comandos, los ejecuta y devuelve la respuesta por el socket.
 func recMensajeS(socketS net.Conn, bufsr *bufio.Reader, usuario string, fin chan bool) {
 	for {
 		comando, err := bufsr.ReadString('\n')
@@ -232,16 +230,48 @@ func recMensajeS(socketS net.Conn, bufsr *bufio.Reader, usuario string, fin chan
 			continue
 		}
 		if comando == "bye" {
+			fmt.Println("Comando recibido de", usuario, ":", comando)
 			log.Println("Usuario", usuario, "envio bye")
 			fin <- true
 			return
 		}
+		fmt.Println("Comando recibido de", usuario, ":", comando)
+		if prohibido := comandoProhibido(comando); prohibido != "" {
+			fmt.Println("Comando BLOQUEADO de", usuario, ":", comando)
+			log.Println("Usuario", usuario, "comando bloqueado:", comando)
+			socketS.Write([]byte("SALIDA|comando no permitido: " + prohibido + "\n"))
+			continue
+		}
 		log.Println("Usuario", usuario, "ejecuta:", comando)
 		socketS.Write([]byte(formatoSalida(ejecutar(comando))))
+		fmt.Println("Salida enviada a", usuario)
 	}
 }
 
-// Pone SALIDA| delante de cada linea para que el cliente la distinga del reporte
+var listaNegra = []string{"kill", "pkill", "killall", "reboot", "shutdown", "halt", "poweroff", "systemctl", "sudo", "su"}
+
+func comandoProhibido(comando string) string {
+	separadores := func(r rune) bool {
+		return strings.ContainsRune(";|&\n`$()", r)
+	}
+	for _, tramo := range strings.FieldsFunc(comando, separadores) {
+		palabras := strings.Fields(tramo)
+		if len(palabras) == 0 {
+			continue
+		}
+		nombre := palabras[0]
+		if i := strings.LastIndex(nombre, "/"); i >= 0 {
+			nombre = nombre[i+1:]
+		}
+		for _, prohibido := range listaNegra {
+			if nombre == prohibido {
+				return prohibido
+			}
+		}
+	}
+	return ""
+}
+
 func formatoSalida(texto string) string {
 	texto = strings.TrimRight(texto, "\n")
 	if texto == "" {
@@ -254,13 +284,10 @@ func formatoSalida(texto string) string {
 	return resultado
 }
 
-// Ejecuta el comando con sh -c y un limite de 30 segundos
 func ejecutar(comando string) string {
 	ctx, cancelar := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelar()
 	cmd := exec.CommandContext(ctx, "sh", "-c", comando)
-	// El comando corre en su propio grupo de procesos; al vencer el tiempo
-	// se mata el grupo completo (sh y sus hijos) y no solo el sh.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
@@ -281,7 +308,6 @@ func generarReporte() string {
 		porcentajeCPU(), porcentajeRAM(), porcentajeDisco(), contarProcesos())
 }
 
-// Lee la primera linea de /proc/stat: tiempo total y tiempo libre de la CPU
 func leerCPU() (uint64, uint64) {
 	archivo, err := os.Open("/proc/stat")
 	if err != nil {
@@ -347,7 +373,6 @@ func porcentajeDisco() int {
 	return int(100 * (st.Blocks - st.Bavail) / st.Blocks)
 }
 
-// Cada carpeta con numero dentro de /proc es un proceso
 func contarProcesos() int {
 	entradas, err := os.ReadDir("/proc")
 	if err != nil {
